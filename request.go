@@ -49,6 +49,15 @@ type ProtocolError struct {
 
 func (pe *ProtocolError) Error() string { return pe.ErrorString }
 
+// RetryError reports a retry-eligible connection or stream failure when
+// DisableRetries is set. The caller owns retry admission and body replayability.
+type RetryError struct {
+	Err error
+}
+
+func (e *RetryError) Error() string { return "http: automatic retry disabled: " + e.Err.Error() }
+func (e *RetryError) Unwrap() error { return e.Err }
+
 var (
 	// ErrNotSupported is returned by the Push method of Pusher
 	// implementations to indicate that HTTP/2 Push support is not
@@ -316,6 +325,12 @@ type Request struct {
 	// to be created. This field is only populated during client
 	// redirects.
 	Response *Response
+
+	// DisableRetries prevents the HTTP/1 and HTTP/2 transports from replaying
+	// this request after a connection or stream failure. Such failures return
+	// a RetryError retaining the original cause. The zero value preserves
+	// automatic retry behavior. This does not disable redirects or connection reuse.
+	DisableRetries bool
 
 	// ctx is either the client or server context. It should only
 	// be modified via copying the whole Request using WithContext.

@@ -1,0 +1,24 @@
+name: Retry control
+
+on:
+  push:
+    branches: [retry-control]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wire-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go build ./...
+      # Upstream v0.6.8 test vet failures are documented in README.md.
+      - run: go test -short -vet=off -race -count=1 -run 'Test(HTTP1RetryAdmission|RetryPolicyPropagation|StreamReplayPolicy)$' .

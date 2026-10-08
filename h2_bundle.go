@@ -7530,6 +7530,9 @@ func (t *http2Transport) RoundTripOpt(req *Request, opt http2RoundTripOpt) (*Res
 		reused := !atomic.CompareAndSwapUint32(&cc.reused, 0, 1)
 		http2traceGotConn(req, cc, reused)
 		res, gotErrAfterReqBodyWrite, err := cc.roundTrip(req)
+		if req.DisableRetries && http2canRetryError(err) {
+			return nil, &RetryError{Err: err}
+		}
 		if err != nil && retry <= 6 {
 			if req, err = http2shouldRetryRequest(req, err, gotErrAfterReqBodyWrite); err == nil {
 				// After the first retry, do exponential backoff with 10% jitter.

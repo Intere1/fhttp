@@ -612,6 +612,8 @@ func (t *Transport) roundTrip(req *Request) (*Response, error) {
 				err = e.err
 			}
 			return nil, err
+		} else if req.DisableRetries {
+			return nil, &RetryError{Err: err}
 		}
 		testHookRoundTripRetried()
 
