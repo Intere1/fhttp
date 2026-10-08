@@ -1754,19 +1754,17 @@ func (cc *ClientConn) encodeHeaders(req *http.Request, addGzipHeader bool, trail
 		// followed by the query production (see Sections 3.3 and 3.4 of
 		// [RFC3986]).
 
-		pHeaderOrder, ok := req.Header[http.PHeaderOrderKey]
-
-		if !ok {
+		pHeaderOrder := req.Header[http.PHeaderOrderKey]
+		if len(pHeaderOrder) == 0 {
 			pHeaderOrder = cc.t.PseudoHeaderOrder
-			ok = true
 		}
 
 		m := req.Method
 		if m == "" {
 			m = http.MethodGet
 		}
-		if ok {
-			// follow based on pseudo header order
+		if len(pHeaderOrder) > 0 {
+			// Follow an explicit order; otherwise emit standard pseudo-headers below.
 			for _, p := range pHeaderOrder {
 				switch p {
 				case ":authority":

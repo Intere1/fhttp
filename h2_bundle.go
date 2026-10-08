@@ -8394,7 +8394,6 @@ var (
 	http2errStopReqBodyWriteAndCancel = errors.New("http2: canceling request")
 )
 
-
 // frameScratchBufferLen returns the length of a buffer to use for
 // outgoing request bodies to read/write to/from.
 //
@@ -8653,19 +8652,17 @@ func (cc *http2ClientConn) encodeHeaders(req *Request, addGzipHeader bool, trail
 		// followed by the query production (see Sections 3.3 and 3.4 of
 		// [RFC3986]).
 
-		pHeaderOrder, ok := req.Header[PHeaderOrderKey]
-
-		if !ok {
+		pHeaderOrder := req.Header[PHeaderOrderKey]
+		if len(pHeaderOrder) == 0 {
 			pHeaderOrder = cc.t.t1.PseudoHeaderOrder
-			ok = true
 		}
 
 		m := req.Method
 		if m == "" {
 			m = MethodGet
 		}
-		if ok {
-			// follow based on pseudo header order
+		if len(pHeaderOrder) > 0 {
+			// Follow an explicit order; otherwise emit standard pseudo-headers below.
 			for _, p := range pHeaderOrder {
 				switch p {
 				case ":authority":

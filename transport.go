@@ -313,7 +313,8 @@ func (t *Transport) readBufferSize() int {
 	return 4 << 10
 }
 
-// Clone returns a deep copy of t's exported fields.
+// Clone returns a deep copy of t's exported configuration fields.
+// Runtime connection pools are initialized independently by the clone.
 func (t *Transport) Clone() *Transport {
 	t.nextProtoOnce.Do(t.onceSetNextProtoDefaults)
 	t2 := &Transport{
@@ -337,6 +338,8 @@ func (t *Transport) Clone() *Transport {
 		ForceAttemptHTTP2:      t.ForceAttemptHTTP2,
 		WriteBufferSize:        t.WriteBufferSize,
 		ReadBufferSize:         t.ReadBufferSize,
+		PseudoHeaderOrder:      append([]string(nil), t.PseudoHeaderOrder...),
+		ConnectionFlow:         t.ConnectionFlow,
 	}
 	if t.TLSClientConfig != nil {
 		t2.TLSClientConfig = t.TLSClientConfig.Clone()

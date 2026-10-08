@@ -2,7 +2,8 @@
 
 ## Intere retry-control fork
 
-This branch extends upstream `v0.6.8` with opt-in request retry control. The
+This branch extends upstream `v0.6.8` with opt-in request retry control and
+correct default HTTP/2 pseudo-header selection. The
 module path remains `github.com/bogdanfinn/fhttp`; consuming applications pin
 `github.com/Intere1/fhttp` through a Go module `replace` directive at an exact
 commit-derived version.
@@ -23,23 +24,29 @@ on the unusable connection.
 Run the fork's wire-level contract tests with:
 
 ```sh
-go test -short -vet=off -race -count=1 -run 'Test(HTTP1RetryAdmission|RetryPolicyPropagation|StreamReplayPolicy)$' .
+go test -race -count=1 retry_test.go stream_peer_test.go stream_replay_test.go configuration_test.go
 ```
 
-These tests exercise local HTTP/1 and raw HTTP/2 peers, including default and
-opt-in behavior, replayable GET/POST bodies, `REFUSED_STREAM`, `GOAWAY`, explicit
-follow-up requests, and redirect propagation. They do not call external sites.
-The focused CI gate uses `-vet=off` because upstream `v0.6.8` has existing test
-vet failures. `-short` disables the upstream leak checker, whose hard-coded
-`net/http_test` self-filter misidentifies its renamed module stack as a leak;
-none of these wire tests are skipped by short mode. Its original retry/reuse
-subset also fails on unmodified upstream:
+These public-API tests exercise local HTTP/1 and raw HTTP/2 peers, including
+default and opt-in behavior, replayable GET/POST bodies, `REFUSED_STREAM`,
+`GOAWAY`, explicit follow-up requests, and redirect propagation. The HTTP/2 peer
+decodes every request header block and checks required pseudo-header values and
+ordering. Native transports with no order configured now emit the standard
+pseudo-headers; a nonempty request order overrides a nonempty transport order.
+Empty orders select the next available level. Explicit browser orders remain
+unchanged. `Transport.Clone` retains independent pseudo-header configuration and
+connection-flow settings while creating its own runtime connection pools.
+
+The named-file gate keeps normal vet enabled and does not compile or run the
+unrelated upstream test suite. Upstream `v0.6.8` has existing test vet failures;
+its leak checker also hard-codes `net/http_test` and misidentifies this module's
+renamed test stack. The original retry/reuse subset fails on unmodified upstream:
 `TestRetryRequestsOnError` (four subcases) and `http2.TestTransportReusesConns`;
 `http2.TestTransportRetryHasLimit` is skipped upstream. Compare these against the
 upstream tag when rebasing; do not interpret the focused gate as a clean full
-upstream suite. Keep the production patch limited to the request flag, typed
-error, redirect propagation, and three retry admission sites. Re-run both wire
-profiles and the consuming application's tests before changing the pinned base.
+upstream suite. Keep the production patch limited to retry admission and these
+protocol/configuration defects. Re-run both wire profiles and the consuming
+application's tests before changing the pinned base.
 
 <!-- This note is not necessary on this repo, but I won't delete it as it should be included on the original one.
 **NOTE**

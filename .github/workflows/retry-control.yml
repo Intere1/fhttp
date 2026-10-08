@@ -20,5 +20,5 @@ jobs:
           go-version-file: go.mod
           cache: true
       - run: go build ./...
-      # Upstream v0.6.8 test vet failures are documented in README.md.
-      - run: go test -short -vet=off -race -count=1 -run 'Test(HTTP1RetryAdmission|RetryPolicyPropagation|StreamReplayPolicy)$' .
+      # Public wire contracts retain normal vet; upstream suite caveats are in README.md.
+      - run: go test -race -count=1 retry_test.go stream_peer_test.go stream_replay_test.go configuration_test.go

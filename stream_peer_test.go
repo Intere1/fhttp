@@ -21,7 +21,7 @@ import (
 // request. Receiving the body before rejection makes replay measurable.
 type streamPeer struct {
 	listener net.Listener
-	signal   string
+	scenario streamScenario
 	done     chan struct{}
 	stopped  chan struct{}
 	workers  sync.WaitGroup
@@ -32,7 +32,13 @@ type streamPeer struct {
 	failures []error
 }
 
-func listenPeer(t *testing.T, signal string) *streamPeer {
+type streamScenario struct {
+	signal string
+	method string
+	order  []string
+}
+
+func listenPeer(t *testing.T, scenario streamScenario) *streamPeer {
 	t.Helper()
 	cert := stdtest.NewTLSServer(stdhttp.HandlerFunc(func(stdhttp.ResponseWriter, *stdhttp.Request) {}))
 	certificates := cert.TLS.Certificates
@@ -43,7 +49,7 @@ func listenPeer(t *testing.T, signal string) *streamPeer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &streamPeer{listener: listener, signal: signal, done: make(chan struct{}), stopped: make(chan struct{})}
+	p := &streamPeer{listener: listener, scenario: scenario, done: make(chan struct{}), stopped: make(chan struct{})}
 	go p.accept()
 	t.Cleanup(func() {
 		close(p.done)
@@ -120,6 +126,7 @@ func (p *streamPeer) serve(conn net.Conn) error {
 		return fmt.Errorf("unexpected client preface %q", preface)
 	}
 	framer := http2.NewFramer(conn, conn)
+	framer.ReadMetaHeaders = hpack.NewDecoder(4096, nil)
 	if err := framer.WriteSettings(); err != nil {
 		return err
 	}
@@ -143,7 +150,24 @@ func (p *streamPeer) serve(conn net.Conn) error {
 					return err
 				}
 			}
-		case *http2.HeadersFrame:
+		case *http2.MetaHeadersFrame:
+			fields := f.PseudoFields()
+			if len(fields) != len(p.scenario.order) {
+				return fmt.Errorf("received %d pseudo-headers; want %d", len(fields), len(p.scenario.order))
+			}
+			for i, field := range fields {
+				if field.Name != p.scenario.order[i] {
+					return fmt.Errorf("pseudo-header %d = %q; want %q", i, field.Name, p.scenario.order[i])
+				}
+			}
+			for name, want := range map[string]string{
+				"method": p.scenario.method, "scheme": "https",
+				"authority": p.listener.Addr().String(), "path": "/probe",
+			} {
+				if got := f.PseudoValue(name); got != want {
+					return fmt.Errorf("pseudo-header :%s = %q; want %q", name, got, want)
+				}
+			}
 			p.mu.Lock()
 			p.headers++
 			p.mu.Unlock()
@@ -170,7 +194,7 @@ func (p *streamPeer) serve(conn net.Conn) error {
 		p.mu.Unlock()
 		delete(pending, completed)
 		if first {
-			if p.signal == "GOAWAY" {
+			if p.scenario.signal == "GOAWAY" {
 				return framer.WriteGoAway(0, http2.ErrCodeNo, nil)
 			}
 			if err := framer.WriteRSTStream(completed, http2.ErrCodeRefusedStream); err != nil {
